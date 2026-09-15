@@ -49,9 +49,21 @@ class ScssCompilerTest extends TestCase
     public function testBlocksAbsolutePathImport()
     {
         $main = $this->tmpReal . '/theme/assets/scss/main.scss';
-        file_put_contents($main, '@import "' . $this->tmpReal . '/secret"; .x { color: red; }');
+        // SCSS string literals treat a backslash as an escape, so a Windows path has
+        // to be written with forward slashes to survive as a usable import target.
+        $secret = str_replace('\\', '/', $this->tmpReal) . '/secret';
+        file_put_contents($main, '@import "' . $secret . '"; .x { color: red; }');
 
-        $this->assertStringNotContainsString('do-not-leak-me', $this->compile($main));
+        // A refused import leaves scssphp with nothing to resolve. Depending on the
+        // platform it either emits the statement verbatim or raises a compile error;
+        // both are refusals, and neither may inline the file.
+        try {
+            $css = $this->compile($main);
+        } catch (\ScssPhp\ScssPhp\Exception\CompilerException $e) {
+            $css = '';
+        }
+
+        $this->assertStringNotContainsString('do-not-leak-me', $css);
     }
 
     /**
